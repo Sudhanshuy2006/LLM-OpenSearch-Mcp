@@ -249,55 +249,6 @@ directly:
 
 ---
 
-## Security notes — read before pushing to GitHub
-
-- **Never commit `.env`.** It holds real OpenSearch credentials (and, if you
-  add one, a real LLM API key). Only `.env.example` — with placeholder
-  values — is meant to be tracked. `.gitignore` already excludes `.env`,
-  `.venv/`, `__pycache__/`, and `*.pyc`.
-- **Before your first `git add -A`, run `git status` and read it.** If `.env`
-  or `.venv/` show up as new/untracked files about to be committed, stop —
-  something is wrong with `.gitignore` in that checkout. Fix it before
-  committing.
-- **The MCP server is read-only by design**
-  (`OPENSEARCH_SETTINGS_ALLOW_WRITE=false`). The LLM can query data but can
-  never modify or delete an index, regardless of what a prompt asks it to do.
-  This is enforced by the server, not by trusting the model.
-- **Set your own password in `.env`** before starting the cluster — do not
-  reuse whatever example value appears in `.env.example` or in this README.
-  `.env` is git-ignored, so your real password never gets committed. Never
-  put a real password directly in this README, in `docker-compose.yml`, or
-  in any other file that gets committed.
-- **If a secret is ever accidentally committed**, deleting the file in a new
-  commit is not enough — it still exists in git history. Rotate the
-  credential immediately, then either rewrite history (`git filter-repo`) or
-  start the repository fresh.
-
-### Pushing to GitHub — the actual steps
-
-```bash
-cd opensearch-mcp-project
-
-# clean up any stray bytecode
-find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null
-
-git init
-git add -A
-git status                 # confirm .env and .venv/ are NOT listed
-git commit -m "OpenSearch MCP + LLM proof of concept - working end to end"
-
-# create an empty repo on GitHub first (no README/.gitignore from their side),
-# then:
-git remote add origin https://github.com/<username>/<repo-name>.git
-git branch -M main
-git push -u origin main
-```
-
-After pushing, open the repo on GitHub and confirm `.env` and `.venv/` are
-**not** present in the file listing — only `.env.example` should be there.
-
----
-
 ## Troubleshooting
 
 | Symptom | Cause and fix |
