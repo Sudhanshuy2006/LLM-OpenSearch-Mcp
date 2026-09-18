@@ -18,7 +18,7 @@ services:
     environment:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
-      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD:-StrongPass@2026}
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD:-<>}
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
     ulimits:
       memlock: { soft: -1, hard: -1 }
@@ -29,7 +29,7 @@ services:
     volumes:
       - opensearch-data:/usr/share/opensearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -sk -u admin:${OPENSEARCH_PASSWORD:-StrongPass@2026} https://localhost:9200/_cluster/health | grep -q '\"status\":\"\\(green\\|yellow\\)\"'"]
+      test: ["CMD-SHELL", "curl -sk -u admin:${OPENSEARCH_PASSWORD:-<>} https://localhost:9200/_cluster/health | grep -q '\"status\":\"\\(green\\|yellow\\)\"'"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -43,7 +43,7 @@ services:
     environment:
       - 'OPENSEARCH_HOSTS=["https://opensearch:9200"]'
       - OPENSEARCH_USERNAME=admin
-      - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD:-StrongPass@2026}
+      - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD:-<>}
       - OPENSEARCH_SSL_VERIFICATIONMODE=none
     depends_on:
       opensearch:
