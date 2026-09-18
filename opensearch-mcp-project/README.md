@@ -45,8 +45,8 @@ If you prefer to set things up by hand instead of using `.env`:
 
 ```bash
 export OPENSEARCH_URL="https://localhost:9200"
-export OPENSEARCH_USERNAME=""
-export OPENSEARCH_PASSWORD=""
+export OPENSEARCH_USERNAME="admin"
+export OPENSEARCH_PASSWORD="<your-password>"   # must match .env / docker-compose
 export MCP_SERVER_MODE=local
 unset DEMO_MODE
 
@@ -166,7 +166,7 @@ delete data. To add a document yourself, go through OpenSearch directly —
 Dev Tools in OpenSearch Dashboards (`http://localhost:5601`), or curl:
 
 ```bash
-curl -k -u admin:StrongPass@2026 -X POST "https://localhost:9200/orders/_doc" \
+curl -k -u admin:<your-password> -X POST "https://localhost:9200/orders/_doc" \
   -H "Content-Type: application/json" \
   -d '{"order_id":"o9999","user_id":"u13","product":"Wireless Keyboard",
        "category":"peripherals","amount":1999,"quantity":1,
@@ -176,7 +176,7 @@ curl -k -u admin:StrongPass@2026 -X POST "https://localhost:9200/orders/_doc" \
 Verify it landed with the **Explore data** tab, or:
 
 ```bash
-curl -k -u admin:StrongPass@2026 "https://localhost:9200/orders/_count"
+curl -k -u admin:<your-password> "https://localhost:9200/orders/_count"
 ```
 
 ---
@@ -263,9 +263,11 @@ directly:
   (`OPENSEARCH_SETTINGS_ALLOW_WRITE=false`). The LLM can query data but can
   never modify or delete an index, regardless of what a prompt asks it to do.
   This is enforced by the server, not by trusting the model.
-- **Change the default password** (`StrongPass@2026`) before using this
-  outside local development. It is intentionally simple for demo purposes
-  and is documented in multiple places in this repo — treat it as public.
+- **Set your own password in `.env`** before starting the cluster — do not
+  reuse whatever example value appears in `.env.example` or in this README.
+  `.env` is git-ignored, so your real password never gets committed. Never
+  put a real password directly in this README, in `docker-compose.yml`, or
+  in any other file that gets committed.
 - **If a secret is ever accidentally committed**, deleting the file in a new
   commit is not enough — it still exists in git history. Rotate the
   credential immediately, then either rewrite history (`git filter-repo`) or
@@ -303,7 +305,7 @@ After pushing, open the repo on GitHub and confirm `.env` and `.venv/` are
 | UI loads but every pill is red | Backend cannot start the MCP server. Run `python poc/cli.py --tools` to see the real error. |
 | `uvx: command not found` | Only needed for `MCP_SERVER_MODE=official`. Install uv, then `source "$HOME/.local/bin/env"` and open a new shell. Or use `MCP_SERVER_MODE=local`. |
 | Connection refused on port 9200 | The container is still starting, or isn't running at all. Check `docker ps`; if empty, run `docker compose -f poc/docker-compose.yml up -d` and wait for `healthy`. |
-| `AuthenticationException: 401 Unauthorized` in MCP server logs | The password the client is using doesn't match the cluster's actual password. Verify with `curl -k -u admin:StrongPass@2026 https://localhost:9200` first — if that also 401s, the cluster was bootstrapped with a different password than what's in `.env`. Fix: `docker compose -f poc/docker-compose.yml down -v` (wipes the volume) then `up -d` again, so the cluster bootstraps fresh using the current `.env` password. |
+| `AuthenticationException: 401 Unauthorized` in MCP server logs | The password the client is using doesn't match the cluster's actual password. Verify with `curl -k -u admin:<your-password> https://localhost:9200` first — if that also 401s, the cluster was bootstrapped with a different password than what's in `.env`. Fix: `docker compose -f poc/docker-compose.yml down -v` (wipes the volume) then `up -d` again, so the cluster bootstraps fresh using the current `.env` password. |
 | OpenSearch container exits immediately | Password policy rejected, or not enough memory. Use 8+ chars with upper/lower/digit/symbol, and give Docker at least 2 GB. |
 | `certificate verify failed` | Expected with the local self-signed cert. Keep `OPENSEARCH_VERIFY_CERTS=false` for local development only. |
 | Model answers without calling any tool | It thinks it already knows. Ask something that requires the data ("how many orders yesterday"), and check the trace — zero `MCP CALL` entries means the tools were never sent. |
