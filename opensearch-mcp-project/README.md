@@ -45,8 +45,8 @@ If you prefer to set things up by hand instead of using `.env`:
 
 ```bash
 export OPENSEARCH_URL="https://localhost:9200"
-export OPENSEARCH_USERNAME="admin"
-export OPENSEARCH_PASSWORD="StrongPass@2026"
+export OPENSEARCH_USERNAME=""
+export OPENSEARCH_PASSWORD=""
 export MCP_SERVER_MODE=local
 unset DEMO_MODE
 
