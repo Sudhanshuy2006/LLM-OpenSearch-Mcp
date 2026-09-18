@@ -1,0 +1,53 @@
+# OpenSearch + Dashboards for the POC.
+#
+# Fixes over the original file:
+#   * the obsolete `version:` key is gone (Compose v2 warns about it)
+#   * Dashboards now receives credentials; without them it cannot connect to a
+#     security-enabled cluster and the UI sits on a loading screen forever
+#   * a healthcheck, so `docker compose up --wait` blocks until the cluster is
+#     actually ready instead of you guessing how long to sleep
+#   * memory lock and the single-node discovery settings made explicit
+#
+# The admin password must satisfy OpenSearch's password policy (8+ chars,
+# upper, lower, digit, special) or the container exits on first boot.
+
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.15.0
+    container_name: opensearch-mcp-poc
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD:-StrongPass@2026}
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile:  { soft: 65536, hard: 65536 }
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sk -u admin:${OPENSEARCH_PASSWORD:-StrongPass@2026} https://localhost:9200/_cluster/health | grep -q '\"status\":\"\\(green\\|yellow\\)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.15.0
+    container_name: opensearch-dashboards-poc
+    ports:
+      - "5601:5601"
+    environment:
+      - 'OPENSEARCH_HOSTS=["https://opensearch:9200"]'
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD:-StrongPass@2026}
+      - OPENSEARCH_SSL_VERIFICATIONMODE=none
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+volumes:
+  opensearch-data:

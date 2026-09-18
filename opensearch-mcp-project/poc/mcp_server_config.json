@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "Drop this into Claude Desktop's config to use the OpenSearch MCP server",
+    "directly from Claude, with no Python client of your own.",
+    "  macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json",
+    "  Windows: %APPDATA%\\Claude\\claude_desktop_config.json",
+    "Then restart Claude Desktop and the tools appear in the tools menu.",
+    "Fixed from the original: OPENSEARCH_SSL_VERIFY was missing, so the server",
+    "rejected the local self-signed certificate, and no tool filter was set, so",
+    "all ~40 tools were exposed at once."
+  ],
+  "mcpServers": {
+    "opensearch": {
+      "command": "uvx",
+      "args": ["opensearch-mcp-server-py", "--transport", "stdio"],
+      "env": {
+        "OPENSEARCH_URL": "https://localhost:9200",
+        "OPENSEARCH_USERNAME": "admin",
+        "OPENSEARCH_PASSWORD": "StrongPass@2026",
+        "OPENSEARCH_SSL_VERIFY": "false",
+        "OPENSEARCH_ENABLED_TOOLS": "ListIndexTool,IndexMappingTool,SearchIndexTool,GetIndexStatsTool",
+        "OPENSEARCH_SETTINGS_ALLOW_WRITE": "false"
+      }
+    }
+  }
+}

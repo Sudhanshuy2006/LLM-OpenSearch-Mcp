@@ -1,0 +1,12 @@
+# Core
+opensearch-py>=2.6.0,<4
+mcp>=1.9.4,<2          # pinned: opensearch-mcp-server-py requires mcp<2,
+                       # and the v2 SDK renamed FastMCP and changed the
+                       # server decorator API, which breaks local_mcp_server.py
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7
+
+# LLM providers - install only the one you plan to use
+openai>=1.40.0         # also covers Groq and xAI (OpenAI-compatible APIs)
+anthropic>=0.39.0

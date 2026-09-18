@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenSearch MCP Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#eceef2; --surface:#ffffff; --surface-2:#f6f7f9;
+  --ink:#1b1d23; --muted:#646a76; --line:#d6dae1;
+  --user:#5b4bc4; --llm:#2f6dd0; --call:#b26205; --result:#0f6b5c; --bad:#b3261e;
+  --radius:3px;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#15171c; --surface:#1d2026; --surface-2:#22252c;
+    --ink:#e8eaee; --muted:#969ca8; --line:#343942;
+    --user:#a396ef; --llm:#78a8ee; --call:#e0a052; --result:#5fbfa9; --bad:#ef8b83;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#15171c; --surface:#1d2026; --surface-2:#22252c;
+  --ink:#e8eaee; --muted:#969ca8; --line:#343942;
+  --user:#a396ef; --llm:#78a8ee; --call:#e0a052; --result:#5fbfa9; --bad:#ef8b83;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ground); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--llm)}
+code,pre{font-family:var(--mono)}
+
+/* ---------- shell ---------- */
+.shell{max-width:1140px;margin:0 auto;padding:0 20px 80px}
+
+header.bar{
+  border-bottom:1px solid var(--line); background:var(--surface);
+  position:sticky; top:0; z-index:20;
+}
+.bar-in{max-width:1140px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}
+.brand{font-weight:700;font-size:17px;letter-spacing:-.01em}
+.brand span{color:var(--muted);font-weight:400}
+.pills{display:flex;gap:7px;flex-wrap:wrap;margin-left:auto}
+.pill{
+  font-family:var(--mono);font-size:11.5px;padding:3px 8px;
+  border:1px solid var(--line);border-radius:var(--radius);
+  background:var(--surface-2);color:var(--muted);white-space:nowrap;
+}
+.pill b{color:var(--ink);font-weight:500}
+.pill.ok{border-color:var(--result);color:var(--result)}
+.pill.off{border-color:var(--bad);color:var(--bad)}
+
+nav.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-top:26px}
+nav.tabs button{
+  font:500 14px/1 var(--sans); color:var(--muted);
+  background:none;border:none;border-bottom:2px solid transparent;
+  padding:11px 15px;cursor:pointer;
+}
+nav.tabs button:hover{color:var(--ink)}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+nav.tabs button:focus-visible{outline:2px solid var(--llm);outline-offset:-2px}
+.panel{display:none;padding-top:26px}
+.panel.on{display:block}
+
+/* ---------- ask ---------- */
+.askbox{display:flex;gap:9px;flex-wrap:wrap}
+.askbox input{
+  flex:1 1 380px;min-width:0;font:400 15px var(--sans);color:var(--ink);
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:12px 14px;
+}
+.askbox input:focus{outline:2px solid var(--llm);outline-offset:-1px;border-color:transparent}
+button.go{
+  font:600 14px var(--sans);color:var(--surface);background:var(--ink);
+  border:1px solid var(--ink);border-radius:var(--radius);padding:12px 22px;cursor:pointer;
+}
+button.go:hover{opacity:.86}
+button.go:disabled{opacity:.45;cursor:progress}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.chip{
+  font:400 12.5px var(--sans);color:var(--muted);background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius);padding:5px 10px;cursor:pointer;
+}
+.chip:hover{color:var(--ink);border-color:var(--muted)}
+
+/* ---------- trace rail ---------- */
+.rail{margin-top:34px;position:relative;padding-left:30px}
+.rail::before{
+  content:"";position:absolute;left:8px;top:6px;bottom:6px;width:1px;background:var(--line);
+}
+.ev{position:relative;margin-bottom:16px}
+.ev::before{
+  content:"";position:absolute;left:-26px;top:9px;width:9px;height:9px;border-radius:50%;
+  background:var(--surface);border:2px solid var(--dot,var(--muted));
+}
+.ev-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.ev-kind{
+  font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.04em;
+  color:var(--dot,var(--muted));
+}
+.ev-label{font-weight:600;font-size:14px}
+.ev-ms{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto}
+.ev-body{margin-top:7px}
+.ev[data-stage="user"]{--dot:var(--user)}
+.ev[data-stage="llm"]{--dot:var(--llm)}
+.ev[data-stage="tool_call"]{--dot:var(--call)}
+.ev[data-stage="tool_result"]{--dot:var(--result)}
+.ev[data-stage="answer"]{--dot:var(--ink)}
+.ev[data-stage="error"]{--dot:var(--bad)}
+
+.note{
+  background:var(--surface);border:1px solid var(--line);border-left:2px solid var(--dot,var(--line));
+  border-radius:var(--radius);padding:10px 13px;font-size:14px;white-space:pre-wrap;
+}
+.summary{font-size:13px;color:var(--muted);margin-top:4px}
+pre.json{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:11px 13px;margin:7px 0 0;font-size:12.5px;line-height:1.5;
+  overflow-x:auto;max-height:340px;overflow-y:auto;
+}
+.tok-key{color:var(--llm)} .tok-str{color:var(--result)}
+.tok-num{color:var(--call)} .tok-bool{color:var(--user)}
+
+details.more{margin-top:6px}
+details.more>summary{
+  font:500 12px var(--sans);color:var(--muted);cursor:pointer;list-style:none;
+  padding:3px 0;user-select:none;
+}
+details.more>summary::before{content:"▸ ";font-size:10px}
+details.more[open]>summary::before{content:"▾ "}
+details.more>summary:hover{color:var(--ink)}
+
+.answer{
+  background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--result);
+  border-radius:var(--radius);padding:15px 17px;white-space:pre-wrap;font-size:15px;line-height:1.6;
+}
+.err{
+  background:var(--surface);border:1px solid var(--bad);border-left:3px solid var(--bad);
+  border-radius:var(--radius);padding:12px 15px;font-size:14px;color:var(--bad);
+}
+.running{
+  display:flex;align-items:center;gap:9px;margin-top:30px;
+  font-family:var(--mono);font-size:13px;color:var(--muted);
+}
+.dotpulse{width:8px;height:8px;border-radius:50%;background:var(--call);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.dotpulse{animation:none;opacity:.7}}
+
+/* ---------- tables / explorer ---------- */
+.split{display:grid;grid-template-columns:200px 1fr;gap:26px}
+@media (max-width:760px){.split{grid-template-columns:1fr}}
+.idxlist{display:flex;flex-direction:column;gap:3px}
+.idxlist button{
+  text-align:left;font:500 14px var(--sans);color:var(--muted);cursor:pointer;
+  background:none;border:1px solid transparent;border-radius:var(--radius);padding:8px 10px;
+}
+.idxlist button:hover{color:var(--ink);background:var(--surface)}
+.idxlist button[aria-current="true"]{background:var(--surface);color:var(--ink);border-color:var(--line)}
+.idxlist .n{font-family:var(--mono);font-size:11px;color:var(--muted);display:block}
+
+.fieldgrid{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 20px}
+.field{
+  font-family:var(--mono);font-size:11.5px;padding:3px 8px;border-radius:var(--radius);
+  border:1px solid var(--line);background:var(--surface);
+}
+.field i{font-style:normal;color:var(--muted)}
+
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{
+  text-align:left;font:600 11.5px var(--mono);color:var(--muted);
+  padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;
+  position:sticky;top:0;background:var(--surface);
+}
+td{padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:380px;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface-2)}
+
+/* ---------- tool cards ---------- */
+.tool{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px;margin-bottom:11px}
+.tool h3{margin:0 0 5px;font:600 15px var(--mono)}
+.tool p{margin:0 0 9px;color:var(--muted);font-size:13.5px;line-height:1.5;max-width:70ch}
+.args{display:flex;gap:6px;flex-wrap:wrap}
+.arg{font-family:var(--mono);font-size:11.5px;padding:2px 7px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
+.arg b{font-weight:600;color:var(--call)}
+
+h2.sec{font-size:15px;font-weight:600;margin:0 0 4px}
+p.lede{color:var(--muted);font-size:13.5px;margin:0 0 18px;max-width:72ch}
+p.lede code{font-family:var(--mono);font-size:12.5px;background:var(--surface);border:1px solid var(--line);border-radius:2px;padding:1px 4px}
+
+/* ---------- raw query editor ---------- */
+.rawbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:11px}
+.rawbar label{font-size:13px;color:var(--muted);display:flex;gap:7px;align-items:center}
+.rawbar select{
+  font:500 13.5px var(--sans);color:var(--ink);background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius);padding:7px 9px;
+}
+.rawbar select:focus{outline:2px solid var(--llm);outline-offset:-1px}
+#rawdsl{
+  width:100%;min-height:270px;resize:vertical;
+  font-family:var(--mono);font-size:13px;line-height:1.6;
+  color:var(--ink);background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius);
+  padding:13px 15px;tab-size:2;
+}
+#rawdsl:focus{outline:2px solid var(--llm);outline-offset:-1px;border-color:transparent}
+.aggblock{margin-top:16px}
+.aggblock h4{margin:0 0 6px;font:600 13px var(--mono);color:var(--muted)}
+button.mini{
+  font:500 11.5px var(--sans);color:var(--muted);background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius);padding:3px 9px;cursor:pointer;margin-left:8px;
+}
+button.mini:hover{color:var(--ink);border-color:var(--muted)}
+.muted{color:var(--muted)}
+.hide{display:none}
+svg.flow{width:100%;height:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:13px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--c)}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-in">
+    <div class="brand">OpenSearch MCP Explorer <span>— natural language in, Query DSL out</span></div>
+    <div class="pills" id="pills"><span class="pill">connecting…</span></div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true"  data-tab="ask">Ask</button>
+    <button role="tab" aria-selected="false" data-tab="data">Explore data</button>
+    <button role="tab" aria-selected="false" data-tab="raw">Write query</button>
+    <button role="tab" aria-selected="false" data-tab="tools">MCP tools</button>
+    <button role="tab" aria-selected="false" data-tab="flow">How it flows</button>
+  </nav>
+
+  <!-- ASK -->
+  <section class="panel on" id="p-ask" role="tabpanel">
+    <div class="askbox">
+      <input id="q" placeholder="Ask about users, orders or application logs…"
+             autocomplete="off" aria-label="Your question">
+      <button class="go" id="go">Run</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div id="out"></div>
+  </section>
+
+  <!-- DATA -->
+  <section class="panel" id="p-data" role="tabpanel">
+    <h2 class="sec">What is actually in the cluster</h2>
+    <p class="lede">These tables are fetched through the same MCP tools the model uses —
+      ListIndexTool, IndexMappingTool and SearchIndexTool. Nothing here talks to OpenSearch directly.</p>
+    <div class="split">
+      <div class="idxlist" id="idxlist"></div>
+      <div>
+        <div class="askbox" style="margin-bottom:6px">
+          <input id="dsearch" placeholder="Filter these documents…" aria-label="Filter documents">
+          <button class="go" id="dgo">Filter</button>
+        </div>
+        <div id="fields" class="fieldgrid"></div>
+        <div id="dtable"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RAW QUERY -->
+  <section class="panel" id="p-raw" role="tabpanel">
+    <h2 class="sec">Write the query yourself</h2>
+    <p class="lede">The manual path, for comparison. No model is involved — the body you type is
+      the body that reaches OpenSearch. It still goes through <code>SearchIndexTool</code>, so the
+      same read-only limits apply. Run a question on the Ask tab, then press “Open in editor” on
+      its query to see exactly what the model wrote.</p>
+
+    <div class="rawbar">
+      <label>Index
+        <select id="rawindex" aria-label="Index to query"></select>
+      </label>
+      <button class="go" id="rawgo">Run query</button>
+      <button class="chip" id="rawfmt" type="button">Format JSON</button>
+      <span class="summary" id="rawmeta"></span>
+    </div>
+
+    <div class="chips" id="rawpresets"></div>
+
+    <textarea id="rawdsl" spellcheck="false" aria-label="Query DSL body"></textarea>
+    <div id="rawout"></div>
+  </section>
+
+  <!-- TOOLS -->
+  <section class="panel" id="p-tools" role="tabpanel">
+    <h2 class="sec">Tools exposed by the MCP server</h2>
+    <p class="lede">This is the entire contract between the model and OpenSearch. The model never
+      sees a connection string or a client library — it sees these names, descriptions and argument
+      schemas, and nothing else.</p>
+    <div id="toollist"></div>
+  </section>
+
+  <!-- FLOW -->
+  <section class="panel" id="p-flow" role="tabpanel">
+    <h2 class="sec">One question, end to end</h2>
+    <p class="lede">Every arrow below corresponds to an entry in the trace on the Ask tab.</p>
+    <svg class="flow" viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg" role="img"
+         aria-label="Flow from user through LLM and MCP client to the MCP server and OpenSearch, and back">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-family="IBM Plex Sans" font-size="13">
+        <!-- boxes -->
+        <g id="fb"></g>
+      </g>
+    </svg>
+    <div class="legend">
+      <span style="--c:var(--user)">you</span>
+      <span style="--c:var(--llm)">model turn</span>
+      <span style="--c:var(--call)">MCP tools/call</span>
+      <span style="--c:var(--result)">OpenSearch response</span>
+    </div>
+    <div id="flowtext" style="margin-top:26px"></div>
+  </section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const el = (t, c, txt) => { const n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; };
+
+/* ---------- JSON pretty printer with syntax colouring ---------- */
+function jsonHTML(value){
+  const json = JSON.stringify(value, null, 2) ?? "null";
+  return json.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      m => {
+        let cls = 'tok-num';
+        if (/^"/.test(m)) cls = /:$/.test(m) ? 'tok-key' : 'tok-str';
+        else if (/true|false|null/.test(m)) cls = 'tok-bool';
+        return `<span class="${cls}">${m}</span>`;
+      });
+}
+function jsonBlock(value){ const p = el('pre','json'); p.innerHTML = jsonHTML(value); return p; }
+
+/* ---------- tabs ---------- */
+const loaded = {};
+document.querySelectorAll('nav.tabs button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', b===btn));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+    $('#p-'+btn.dataset.tab).classList.add('on');
+    const t = btn.dataset.tab;
+    if(!loaded[t]){ loaded[t]=1; if(t==='data') loadIndices(); if(t==='tools') loadTools(); if(t==='flow') drawFlow(); if(t==='raw') initRaw(); }
+  };
+});
+
+/* ---------- status ---------- */
+async function loadStatus(){
+  const pills = $('#pills'); pills.innerHTML='';
+  try{
+    const s = await (await fetch('/api/status')).json();
+    const add = (label, val, cls='') => {
+      const p = el('span','pill '+cls); p.innerHTML = label+' <b>'+val+'</b>'; pills.appendChild(p);
+    };
+    add('cluster', s.demo_mode ? 'in-memory demo' : shortUrl(s.opensearch_url), s.opensearch_reachable?'ok':'off');
+    add('mcp', s.mcp_server_mode + (s.mcp_connected ? ' · '+s.tool_count+' tools' : ' · down'), s.mcp_connected?'ok':'off');
+    add('llm', s.llm_provider === 'rules' ? 'rules (offline)' : s.llm_provider+' · '+s.model);
+    if(s.error){ const p=el('span','pill off', s.error.slice(0,70)); pills.appendChild(p); }
+  }catch(e){ pills.appendChild(el('span','pill off','backend unreachable')); }
+}
+const shortUrl = u => String(u).replace(/^https?:\/\//,'');
+
+/* ---------- ask ---------- */
+const EXAMPLES = [
+  "How many orders were placed yesterday?",
+  "Show me the top 5 products by sales",
+  "Find all users who signed up in the last 30 days",
+  "Find error logs related to payment failures",
+  "Which product categories sold the most?",
+  "Show me recent orders"
+];
+EXAMPLES.forEach(x => {
+  const c = el('button','chip',x);
+  c.onclick = () => { $('#q').value = x; ask(); };
+  $('#chips').appendChild(c);
+});
+
+const KIND = {user:'YOU', llm:'MODEL', tool_call:'MCP CALL', tool_result:'OPENSEARCH', answer:'ANSWER', error:'ERROR'};
+
+function renderEvent(ev){
+  const w = el('div','ev'); w.dataset.stage = ev.stage;
+  const head = el('div','ev-head');
+  head.appendChild(el('span','ev-kind', KIND[ev.stage] || ev.stage.toUpperCase()));
+  head.appendChild(el('span','ev-label', ev.label));
+  if(ev.duration_ms != null) head.appendChild(el('span','ev-ms', ev.duration_ms+' ms'));
+  w.appendChild(head);
+
+  const body = el('div','ev-body');
+
+  if(ev.stage === 'user' || (ev.stage === 'llm' && typeof ev.detail === 'string')){
+    body.appendChild(el('div','note', ev.detail));
+  }
+  else if(ev.stage === 'answer'){
+    body.appendChild(el('div','answer', ev.detail));
+  }
+  else if(ev.stage === 'error'){
+    body.appendChild(el('div','err', typeof ev.detail==='string'?ev.detail:JSON.stringify(ev.detail)));
+  }
+  else if(ev.stage === 'tool_call'){
+    const cap = el('div','summary','arguments sent over MCP:');
+    if(ev.detail.tool === 'SearchIndexTool' && ev.detail.arguments.query_dsl){
+      const b = el('button','mini','Open in editor');
+      b.onclick = () => {
+        document.querySelector('nav.tabs button[data-tab="raw"]').click();
+        setEditor(ev.detail.arguments.index, ev.detail.arguments.query_dsl);
+      };
+      cap.appendChild(b);
+    }
+    body.appendChild(cap);
+    body.appendChild(jsonBlock(ev.detail.arguments));
+  }
+  else if(ev.stage === 'tool_result'){
+    body.appendChild(el('div','summary', ev.detail.summary));
+    const d = el('details','more');
+    d.appendChild(el('summary',null,'raw response'));
+    d.appendChild(jsonBlock(ev.detail.parsed ?? ev.detail.raw));
+    body.appendChild(d);
+  }
+  else if(ev.detail){
+    body.appendChild(jsonBlock(ev.detail));
+  }
+  w.appendChild(body);
+  return w;
+}
+
+async function ask(){
+  const q = $('#q').value.trim();
+  if(!q) return;
+  const out = $('#out');
+  $('#go').disabled = true;
+  out.innerHTML = '';
+  const run = el('div','running');
+  run.appendChild(el('span','dotpulse'));
+  run.appendChild(el('span',null,'model is choosing tools…'));
+  out.appendChild(run);
+
+  try{
+    const r = await fetch('/api/ask', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({question:q})
+    });
+    const data = await r.json();
+    out.innerHTML = '';
+    if(!r.ok){ out.appendChild(el('div','err', data.detail || 'Request failed.')); return; }
+
+    const rail = el('div','rail');
+    data.events.forEach(ev => rail.appendChild(renderEvent(ev)));
+    out.appendChild(rail);
+
+    const foot = el('div','summary');
+    foot.style.marginTop = '8px';
+    foot.textContent = `${data.provider}/${data.model} · ${data.iterations} model turn(s) · ${data.total_ms} ms total`;
+    out.appendChild(foot);
+  }catch(e){
+    out.innerHTML = '';
+    out.appendChild(el('div','err','Could not reach the backend: '+e.message));
+  }finally{ $('#go').disabled = false; }
+}
+$('#go').onclick = ask;
+$('#q').addEventListener('keydown', e => { if(e.key === 'Enter') ask(); });
+
+/* ---------- data explorer ---------- */
+let currentIndex = null;
+async function loadIndices(){
+  const list = $('#idxlist'); list.innerHTML = '';
+  try{
+    const d = await (await fetch('/api/indices')).json();
+    (d.indices||[]).forEach((ix,i) => {
+      const b = el('button');
+      b.appendChild(el('span',null,ix.index));
+      b.appendChild(el('span','n', (ix.doc_count ?? '?')+' docs'));
+      b.onclick = () => selectIndex(ix.index);
+      list.appendChild(b);
+      if(i===0) selectIndex(ix.index);
+    });
+    if(!(d.indices||[]).length) list.appendChild(el('div','muted','No indices found. Run load_sample_data.py first.'));
+  }catch(e){ list.appendChild(el('div','muted','Could not list indices.')); }
+}
+
+async function selectIndex(name){
+  currentIndex = name;
+  document.querySelectorAll('#idxlist button').forEach(b =>
+    b.setAttribute('aria-current', b.textContent.startsWith(name)));
+  const fields = $('#fields'); fields.innerHTML = '';
+  try{
+    const m = await (await fetch('/api/mapping/'+encodeURIComponent(name))).json();
+    (m.fields||[]).forEach(f => {
+      const s = el('span','field'); s.innerHTML = f.name+' <i>'+f.type+'</i>'; fields.appendChild(s);
+    });
+  }catch(e){}
+  browse();
+}
+
+async function browse(){
+  const wrap = $('#dtable'); wrap.innerHTML = '<div class="muted">loading…</div>';
+  try{
+    const d = await (await fetch('/api/browse',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({index:currentIndex, size:50, search:$('#dsearch').value})
+    })).json();
+    wrap.innerHTML = '';
+    const cap = el('div','summary', `${d.total} documents match · showing ${d.documents.length}`);
+    cap.style.marginBottom='7px'; wrap.appendChild(cap);
+
+    if(!d.documents.length){ wrap.appendChild(el('div','muted','Nothing matched that filter.')); return; }
+    const tw = el('div','tablewrap'), tbl = el('table');
+    const thead = el('thead'), htr = el('tr');
+    d.columns.forEach(c => htr.appendChild(el('th',null,c)));
+    thead.appendChild(htr); tbl.appendChild(thead);
+    const tb = el('tbody');
+    d.documents.forEach(doc => {
+      const tr = el('tr');
+      d.columns.forEach(c => {
+        const v = doc[c];
+        tr.appendChild(el('td', null, v==null?'—':(typeof v==='object'?JSON.stringify(v):String(v))));
+      });
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb); tw.appendChild(tbl); wrap.appendChild(tw);
+
+    const det = el('details','more');
+    det.appendChild(el('summary',null,'Query DSL sent through SearchIndexTool'));
+    det.appendChild(jsonBlock(d.query_dsl));
+    wrap.appendChild(det);
+  }catch(e){ wrap.innerHTML=''; wrap.appendChild(el('div','err','Could not load documents.')); }
+}
+$('#dgo').onclick = browse;
+$('#dsearch').addEventListener('keydown', e => { if(e.key==='Enter') browse(); });
+
+/* ---------- tools ---------- */
+async function loadTools(){
+  const list = $('#toollist'); list.innerHTML = '<div class="muted">loading…</div>';
+  try{
+    const d = await (await fetch('/api/tools')).json();
+    list.innerHTML = '';
+    d.tools.forEach(t => {
+      const c = el('div','tool');
+      c.appendChild(el('h3',null,t.name));
+      c.appendChild(el('p',null,t.description));
+      const args = el('div','args');
+      const props = (t.schema && t.schema.properties) || {};
+      const req = (t.schema && t.schema.required) || [];
+      Object.entries(props).forEach(([k,v]) => {
+        const a = el('span','arg');
+        a.innerHTML = (req.includes(k) ? '<b>'+k+'</b>' : k) + ' : ' + (v.type||'any');
+        args.appendChild(a);
+      });
+      if(!Object.keys(props).length) args.appendChild(el('span','arg','no arguments'));
+      c.appendChild(args);
+      const d2 = el('details','more');
+      d2.appendChild(el('summary',null,'full JSON schema'));
+      d2.appendChild(jsonBlock(t.schema));
+      c.appendChild(d2);
+      list.appendChild(c);
+    });
+  }catch(e){ list.innerHTML=''; list.appendChild(el('div','err','Could not load the tool list.')); }
+}
+
+/* ---------- flow diagram ---------- */
+function drawFlow(){
+  const g = $('#fb'); if(g.childNodes.length) return;
+  const NS='http://www.w3.org/2000/svg';
+  const box = (x,y,w,h,title,sub,color) => {
+    const grp=document.createElementNS(NS,'g');
+    const r=document.createElementNS(NS,'rect');
+    r.setAttribute('x',x); r.setAttribute('y',y); r.setAttribute('width',w); r.setAttribute('height',h);
+    r.setAttribute('rx','3'); r.setAttribute('fill','var(--surface-2)');
+    r.setAttribute('stroke',color); r.setAttribute('stroke-width','1.5');
+    grp.appendChild(r);
+    const t=document.createElementNS(NS,'text');
+    t.setAttribute('x',x+w/2); t.setAttribute('y',y+(sub?h/2-4:h/2+5));
+    t.setAttribute('text-anchor','middle'); t.setAttribute('fill','var(--ink)');
+    t.setAttribute('font-weight','600'); t.textContent=title; grp.appendChild(t);
+    if(sub){
+      const s=document.createElementNS(NS,'text');
+      s.setAttribute('x',x+w/2); s.setAttribute('y',y+h/2+14);
+      s.setAttribute('text-anchor','middle'); s.setAttribute('fill','var(--muted)');
+      s.setAttribute('font-size','11.5'); s.setAttribute('font-family','IBM Plex Mono');
+      s.textContent=sub; grp.appendChild(s);
+    }
+    g.appendChild(grp);
+  };
+  const arrow = (x1,y1,x2,y2,label,color,dash) => {
+    const p=document.createElementNS(NS,'path');
+    p.setAttribute('d',`M${x1},${y1} L${x2},${y2}`);
+    p.setAttribute('stroke',color); p.setAttribute('stroke-width','1.5');
+    p.setAttribute('fill','none'); p.setAttribute('marker-end','url(#ar)');
+    p.setAttribute('color',color);
+    if(dash) p.setAttribute('stroke-dasharray','4 3');
+    g.appendChild(p);
+    if(label){
+      const t=document.createElementNS(NS,'text');
+      t.setAttribute('x',(x1+x2)/2); t.setAttribute('y',(y1+y2)/2 - 7);
+      t.setAttribute('text-anchor','middle'); t.setAttribute('fill',color);
+      t.setAttribute('font-size','11.5'); t.setAttribute('font-family','IBM Plex Mono');
+      t.textContent=label; g.appendChild(t);
+    }
+  };
+  const U='var(--user)', L='var(--llm)', C='var(--call)', R='var(--result)';
+  box(40,30,180,52,'You','plain English',U);
+  box(360,30,200,52,'LLM','picks a tool',L);
+  box(680,30,180,52,'MCP client','agent.py',C);
+  box(680,200,180,52,'MCP server','tools/list · tools/call',C);
+  box(360,200,200,52,'OpenSearch','Query DSL executed',R);
+  box(360,370,200,52,'Answer','plain English',R);
+
+  arrow(220,56,356,56,'question',U);
+  arrow(560,56,676,56,'tool name + args',L);
+  arrow(770,82,770,196,'stdio / JSON-RPC',C);
+  arrow(676,226,564,226,'_search',C);
+  arrow(360,252,360,340,'',R);
+  arrow(360,340,360,366,'hits + aggregations',R);
+  arrow(460,196,460,88,'results back to model',L,true);
+}
+
+const FLOW_STEPS = [
+  ["You type a question","No query syntax, no index names, no field names."],
+  ["The MCP client starts the server","agent.py launches the OpenSearch MCP server as a subprocess and completes the MCP handshake."],
+  ["Tool discovery","The client calls tools/list. The server replies with tool names, descriptions and JSON argument schemas. These are handed to the model as its available functions."],
+  ["The model picks a tool","It reads your question plus the tool descriptions and emits a structured tool call — typically IndexMappingTool first, to learn the real field names."],
+  ["The client executes it","agent.py forwards the call over MCP as tools/call. The model never touches OpenSearch itself."],
+  ["The server queries OpenSearch","It translates the tool arguments into a real _search request and returns the JSON response."],
+  ["The model reads the result","If the query was wrong it corrects itself and calls again. If it has what it needs, it stops calling tools."],
+  ["You get an answer","Plain language, with the numbers taken from the tool result — and every step above is visible in the trace."]
+];
+(function(){
+  const box = $('#flowtext');
+  FLOW_STEPS.forEach(([h,b],i) => {
+    const d = el('div'); d.style.cssText='display:flex;gap:14px;padding:11px 0;border-top:1px solid var(--line)';
+    const n = el('div',null,String(i+1));
+    n.style.cssText='font-family:var(--mono);font-size:12px;color:var(--muted);min-width:18px;padding-top:2px';
+    const c = el('div');
+    const t = el('div',null,h); t.style.cssText='font-weight:600;font-size:14px';
+    const p = el('div','muted',b); p.style.cssText='font-size:13.5px;max-width:70ch;margin-top:2px';
+    c.appendChild(t); c.appendChild(p); d.appendChild(n); d.appendChild(c); box.appendChild(d);
+  });
+})();
+
+/* ---------- raw query editor ---------- */
+const PRESETS = [
+  ["Orders yesterday (count)", "orders", {
+    size: 0, track_total_hits: true,
+    query: { bool: { filter: [ { range: { order_date: {
+      gte: "now-1d/d", lt: "now/d", format: "strict_date_optional_time||epoch_millis" } } } ] } }
+  }],
+  ["Top products by revenue", "orders", {
+    size: 0,
+    query: { bool: { filter: [ { term: { status: "completed" } } ] } },
+    aggs: { top_items: {
+      terms: { field: "product", size: 5, order: { metric: "desc" } },
+      aggs: { metric: { sum: { field: "amount" } } } } }
+  }],
+  ["Signups in last 30 days", "users", {
+    size: 20,
+    query: { bool: { filter: [ { range: { signup_date: { gte: "now-30d/d" } } } ] } },
+    sort: [ { signup_date: { order: "desc" } } ]
+  }],
+  ["Payment errors", "app_logs", {
+    size: 10,
+    query: { bool: { must: [
+      { term: { level: "ERROR" } },
+      { match: { message: "payment" } } ] } },
+    sort: [ { timestamp: { order: "desc" } } ]
+  }],
+  ["Orders per day", "orders", {
+    size: 0,
+    aggs: { per_day: {
+      date_histogram: { field: "order_date", calendar_interval: "1d" },
+      aggs: { revenue: { sum: { field: "amount" } } } } }
+  }],
+  ["Everything in this index", "orders", { size: 10, query: { match_all: {} } }]
+];
+
+let wantedIndex = null;
+function setEditor(index, dsl){
+  wantedIndex = index || wantedIndex;
+  applyWantedIndex();
+  $('#rawdsl').value = JSON.stringify(dsl, null, 2);
+  $('#rawmeta').textContent = '';
+}
+function applyWantedIndex(){
+  const sel = $('#rawindex');
+  if(wantedIndex && [...sel.options].some(o => o.value === wantedIndex)){
+    sel.value = wantedIndex;
+  }
+}
+
+async function initRaw(){
+  const sel = $('#rawindex');
+  sel.innerHTML = '';
+  try{
+    const d = await (await fetch('/api/indices')).json();
+    (d.indices||[]).forEach(ix => {
+      const o = document.createElement('option');
+      o.value = ix.index; o.textContent = ix.index; sel.appendChild(o);
+    });
+  }catch(e){}
+
+  applyWantedIndex();
+
+  const box = $('#rawpresets'); box.innerHTML = '';
+  PRESETS.forEach(([label, index, dsl]) => {
+    const c = el('button','chip',label);
+    c.onclick = () => setEditor(index, dsl);
+    box.appendChild(c);
+  });
+
+  if(!$('#rawdsl').value.trim()) setEditor(PRESETS[0][1], PRESETS[0][2]);
+}
+
+$('#rawfmt').onclick = () => {
+  try{
+    $('#rawdsl').value = JSON.stringify(JSON.parse($('#rawdsl').value), null, 2);
+    $('#rawmeta').textContent = 'formatted';
+  }catch(err){ $('#rawmeta').textContent = 'not valid JSON: ' + err.message; }
+};
+
+async function runRaw(){
+  const out = $('#rawout'); out.innerHTML = '';
+  let dsl;
+  try{
+    dsl = JSON.parse($('#rawdsl').value);
+  }catch(err){
+    out.appendChild(el('div','err','That is not valid JSON — ' + err.message));
+    return;
+  }
+
+  $('#rawgo').disabled = true;
+  $('#rawmeta').textContent = 'running…';
+  try{
+    const d = await (await fetch('/api/raw_query',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ index: $('#rawindex').value, query_dsl: dsl })
+    })).json();
+
+    if(!d.ok){
+      $('#rawmeta').textContent = '';
+      out.appendChild(el('div','err','OpenSearch rejected the query: ' + d.error));
+      return;
+    }
+
+    $('#rawmeta').textContent = `${d.total} hits · ${d.took_ms} ms`;
+
+    if(d.aggregations){
+      const a = el('div','aggblock');
+      a.appendChild(el('h4',null,'aggregations'));
+      a.appendChild(jsonBlock(d.aggregations));
+      out.appendChild(a);
+    }
+
+    if(d.documents.length){
+      const head = el('div','summary', `${d.total} documents match · showing ${d.documents.length}`);
+      head.style.margin = '16px 0 7px'; out.appendChild(head);
+      const tw = el('div','tablewrap'), tbl = el('table');
+      const htr = el('tr');
+      d.columns.forEach(c => htr.appendChild(el('th',null,c)));
+      const thead = el('thead'); thead.appendChild(htr); tbl.appendChild(thead);
+      const tb = el('tbody');
+      d.documents.forEach(doc => {
+        const tr = el('tr');
+        d.columns.forEach(c => {
+          const v = doc[c];
+          tr.appendChild(el('td',null, v==null?'—':(typeof v==='object'?JSON.stringify(v):String(v))));
+        });
+        tb.appendChild(tr);
+      });
+      tbl.appendChild(tb); tw.appendChild(tbl); out.appendChild(tw);
+    } else if(!d.aggregations){
+      if(d.total > 0){
+        out.appendChild(el('div','answer', `${d.total} document${d.total===1?'':'s'} matched. (size was 0, so no individual documents were returned — only the count.)`));
+      } else {
+        out.appendChild(el('div','muted','The query matched 0 documents.'));
+      }
+    }
+
+    const det = el('details','more');
+    det.appendChild(el('summary',null,'full OpenSearch response'));
+    det.appendChild(jsonBlock(d.raw));
+    out.appendChild(det);
+  }catch(e){
+    out.appendChild(el('div','err','Could not reach the backend: ' + e.message));
+  }finally{ $('#rawgo').disabled = false; }
+}
+$('#rawgo').onclick = runRaw;
+$('#rawdsl').addEventListener('keydown', e => {
+  if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)) runRaw();
+});
+
+loadStatus();
+</script>
+</body>
+</html>
